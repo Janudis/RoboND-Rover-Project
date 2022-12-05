@@ -235,21 +235,4 @@ Inspection of the above matrix shows we are immediately given a numerical value 
 
 And we now have numeric values for all six thetas.
 
-## Results
----
-The above inverse kinematics solution gets very good accuracy and repeatability when used in the Gazebo simulation provided
 
-![alt text][image3]
-
-Above: The Kuka arm successfully stacking 6 cylinders in simulation
-
-The main problem is the speed of execution. IK_server.py is written using Sympy primarily, and as a result takes noticeable time to return the joint angle solutions when called. Sometimes resulting in the warning:
-
-[ WARN] [1499277460.747253884, 1277.949000000]: Dropping first 1 trajectory point(s) out of 28, as they occur before the current time.
-First valid point will be reached in 0.041s.
-
-when computation took too long.
-
-A better node would retreive the homogeneous transformation matrices from the parameter server for re-usability, and use numpy for matrix calculations to improve execution speed. Since this exercise was more focused on finding the mathematical solution to the inverse kinematics problem, I concluded with the Sympy solution.
-
-Additionally, there are moments in the simulation where the arm adjusts its ee orientation by pi about the z_G axis before continuing its trajectory. This is likely due to not specifying a single quadrant for joint angle solutions. A better IK node would compute all working joint angle configurations and return the one with minimal joint difference from the previous state.
