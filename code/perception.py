@@ -1,59 +1,50 @@
 import numpy as np
 import cv2
 
-# Βρείτε τα pixel που είναι πάνω από το κατώφλι
-# Το κατώφλι για RGB > 160 είναι μια καλή εκτίμηση για να βρούμε τα pixels που θέλουμε, δηλαδή "φωτεινό" λευκό
+
 def ground_thresh(img, rgb_thresh=(160, 160, 160)):
-    
-    ###############################################################################
-    #########################ΣΥΜΠΛΗΡΩΣΤΕ ΕΔΩ#######################################
-    
-    # Δημιουργία ενός πίνακα με μηδενικά για να αποθηκεύσουμε την εικόνα που θα προκύψει, αλλά με ένα μόνο channel
-    # αφού θα έχουμε τιμές 0 ή 1 (ασπρόμαυρο)
-    ground_select = np.zeros_like(img[:,:,0])
-    # Απαιτείται κάθε εικονοστοιχείο να είναι πάνω από τις τρεις τιμές κατωφλίου σε RGB
-    # Το above_thresh θα περιέχει τώρα έναν δυαδικό πίνακα με "True"
-    # όπου ικανοποιήθηκε το όριο
-    
-    above_thresh = 0 
-    
+
+    ground_select = np.zeros_like(img[:, :, 0])
+
+    above_thresh = (img[:, :, 0] > rgb_thresh[0]) \
+                & (img[:, :, 1] > rgb_thresh[1]) \
+                & (img[:, :, 2] > rgb_thresh[2])
+
     ground_select[above_thresh] = 1
-    
+
     ###############################################################################
     ###############################################################################
-    
+
     return ground_select
 
-def rock_thresh(img, rgb_thresh=(0, 0, 0)):
-    
-    ###############################################################################
-    #########################ΣΥΜΠΛΗΡΩΣΤΕ ΕΔΩ#######################################
-    
-    rock_select = np.zeros_like(img[:,:,0])
-    
-    above_thresh = 0
-    
-    rock_select[above_thresh] = 1
-    
-    ###############################################################################
-    ###############################################################################
-    
-    return rock_select
 
-def obstacle_thresh(img, rgb_thresh=(0, 0, 0)):
-    
+def rock_thresh(img):
+
     ###############################################################################
     #########################ΣΥΜΠΛΗΡΩΣΤΕ ΕΔΩ#######################################
-    
-    obstacle_select = np.zeros_like(img[:,:,0])
-    
-    above_thresh = 0
-    
+    hsv_img=cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+    rock_lower = np.array([0, 200, 100])     # HSV lower limit for golden rocks
+    rock_upper = np.array([179, 255, 255])   # HSV upper limit for golden rocks
+
+    rock_select = cv2.inRange(hsv_img, rock_lower, rock_upper)
+
+    return rock_select*255
+
+
+def obstacle_thresh(img, rgb_thresh=(160, 160, 160)):
+
+    ###############################################################################
+    #########################ΣΥΜΠΛΗΡΩΣΤΕ ΕΔΩ#######################################
+
+    obstacle_select = np.zeros_like(img[:, :, 0])
+
+    above_thresh = (img[:, :, 0] < rgb_thresh[0]) \
+                & (img[:, :, 1] < rgb_thresh[1]) \
+                & (img[:, :, 2] < rgb_thresh[2])
+
     obstacle_select[above_thresh] = 1
-    
-    ###############################################################################
-    ###############################################################################
-    
+
     return obstacle_select
 
 
@@ -66,47 +57,56 @@ def rover_coords(binary_img):
 
     x_pixel = -(ypos - binary_img.shape[0]).astype(np.float)
     y_pixel = -(xpos - binary_img.shape[1]/2 ).astype(np.float)
-    
+
     return x_pixel, y_pixel
 
 # Μετατροπή σε πολικές συντεταγμένες
+
+
 def to_polar_coords(x_pixel, y_pixel):
     dist = np.sqrt(x_pixel**2 + y_pixel**2)
-   
+
     angles = np.arctan2(y_pixel, x_pixel)
     return dist, angles
 
 # Εφαρμογή περιστροφής
+
+
 def rotate_pix(xpix, ypix, yaw):
-    
+
     ###############################################################################
     #########################ΣΥΜΠΛΗΡΩΣΤΕ ΕΔΩ#######################################
     # Μετατροπή μοιρών σε ακτίνια
-    yaw_rad = 0
-    
+    yaw_rad = (yaw * np.pi) / 180
+
     # Εφαρμόστε περιστροφή
-    xpix_rotated =0
-                            
-    ypix_rotated = 0
-    
+    xpix_rotated =(xpix * np.cos(yaw_rad)) - (ypix * np.sin(yaw_rad))
+
+    ypix_rotated = (xpix * np.sin(yaw_rad)) + (ypix * np.cos(yaw_rad))
+
     ###############################################################################
     ###############################################################################
-      
+
     return xpix_rotated, ypix_rotated
 
+
+
 #Εφαρμογή μετaτόπισης και κλιμάκωσης
-def translate_pix(xpix_rot, ypix_rot, xpos, ypos, scale): 
-    
+
+
+
+def translate_pix(xpix_rot, ypix_rot, xpos, ypos, scale):
+
     ###############################################################################
     #########################ΣΥΜΠΛΗΡΩΣΤΕ ΕΔΩ#######################################
-    
+
     # Εφαρμόστε κλιμάκωση και μετατόπιση
-    xpix_translated = 0
-    ypix_translated = 0
-    
+    xpix_translated = (xpix_rot / scale) + xpos
+    ypix_translated = (ypix_rot / scale) + ypos
+
     ###############################################################################
     ###############################################################################
-    
+
     return xpix_translated, ypix_translated
 
 
@@ -119,11 +119,13 @@ def pix_to_world(xpix, ypix, xpos, ypos, yaw, world_size, scale):
     # Αποκοπή των pixels που πέφτουν έξω από τον κόσμο
     x_pix_world = np.clip(np.int_(xpix_tran), 0, world_size - 1)
     y_pix_world = np.clip(np.int_(ypix_tran), 0, world_size - 1)
-    
+
     # επιστροφή των συντεταγμένων κόσμου
     return x_pix_world, y_pix_world
 
 # Define a function to perform a perspective transform
+
+
 def perspect_transform(img, src, dst):
 
     M = cv2.getPerspectiveTransform(src, dst)
@@ -137,7 +139,7 @@ def perception_step(Rover):
 
     # παράδειγμα χρήσης του databucket
     # print(data.xpos[data.count], data.ypos[data.count], data.yaw[data.count])
-    
+
     ###############################################################################
     #########################ΣΥΜΠΛΗΡΩΣΤΕ ΕΔΩ#######################################
 
@@ -145,42 +147,67 @@ def perception_step(Rover):
     # Η εικόνα έρχεται στο Rover.img
 
     # 1) Ορίστε σημεία προορισμού και προέλευσης
-
-    # 2) Εφαρμόστε μετασχηματισμό προοπτικής
     dst_size = 5
     bottom_offset = 6
+    scale = 10
+    rvr_xpos = Rover.pos[0]
+    rvr_ypos = Rover.pos[1]
+    rvr_yaw = Rover.yaw
+    wrl_shp0 = Rover.worldmap.shape[0]
 
-    source = np.float32([[],[],[],[]])
-    destination = np.float32([[],[],[],[]])
+    source = np.float32([[14, 140], [301 ,140],[200, 96], [118, 96]])
+    #155,154, 165,154, 165,144  ,155, 144
+    destination = np.float32([[Rover.img.shape[1] / 2 - dst_size, Rover.img.shape[0] - bottom_offset],
+                              [Rover.img.shape[1] / 2 + dst_size, Rover.img.shape[0] - bottom_offset],
+                              [Rover.img.shape[1] / 2 + dst_size, Rover.img.shape[0] - 2 * dst_size - bottom_offset],
+                              [Rover.img.shape[1] / 2 - dst_size, Rover.img.shape[0] - 2 * dst_size - bottom_offset],
+                              ])
+
+
+    # 2) Εφαρμόστε μετασχηματισμό προοπτικής
+    warped = perspect_transform(Rover.img, source, destination)
+    rock_warped = perspect_transform(Rover.img, source, destination)
+
+
 
     # 3) Εφαρμόστε κατώφλι χρώματος για εμπόδια, πλοηγήσιμο έδαφος και πετρώματα
+    ground = ground_thresh(warped)
+    obstacle = obstacle_thresh(warped)
+    rock = rock_thresh(rock_warped)
 
     # 4) Ενημερώστε την εικόνα που εμφανίζεται κάτω αριστερά (Rover.vision_image)
     # την εικόνα που είναι σε bird's eye view
-        # Παράδειγμα: Rover.vision_image[:,:,0] = obstacle color-thresholded binary image (στο κόκκινο κανάλι τα εμπόδια)
-        #             Rover.vision_image[:,:,1] = rock_sample color-thresholded binary image (στο πράσινο κανάλι τα πετρώματα)
-        #             Rover.vision_image[:,:,2] = navigable terrain color-thresholded binary image (στο μπλε κανάλι το λοηγίσιμο έδαφος)
+    Rover.vision_image[:, :, 0] = obstacle*255 #obstacle color-thresholded binary image (στο κόκκινο κανάλι τα εμπόδια)
+    Rover.vision_image[:, :, 1] = rock*255 #rock_sample color-thresholded binary image (στο πράσινο κανάλι τα πετρώματα)
+    Rover.vision_image[:, :, 2] = ground*255 #navigable terrain color-thresholded binary image (στο μπλε κανάλι το λοηγίσιμο έδαφος)
 
 
     # 5) Μετατροπή των συντεταγμένων εικόνας σε rover-centric (ρομπο-κεντρικές)
+    grdx_pix, grdy_pix = rover_coords(ground)  # convert navigable area thresholded to rover coords.
+    obstx_pix, obsty_pix = rover_coords(obstacle)  # convert obstacle area thresholded to rover coords.
+    rockx_pix, rocky_pix = rover_coords(rock)  # convert rock thresholded to rover coords.
 
     # 6) Μετατροπή των rover-centric συντεταγμένων σε συντεταγμένες περιβάλλλοντος (global coordinates)
+    grdx_wld, grdy_wld = pix_to_world(grdx_pix, grdy_pix, rvr_xpos, rvr_ypos, rvr_yaw, wrl_shp0, scale)
+    obstx_wld, obsty_wld = pix_to_world(obstx_pix, obsty_pix, rvr_xpos, rvr_ypos, rvr_yaw, wrl_shp0, scale)
+    rockx_wld, rocky_wld = pix_to_world(rockx_pix, rocky_pix, rvr_xpos, rvr_ypos, rvr_yaw, wrl_shp0, scale)
 
-    # 7) Ενημέρωση του χάρτη pixel pixel (κάτω δεξιά)
-        # Παράδειγμα: Rover.worldmap[obstacle_y_world, obstacle_x_world, 0] += 1 (τα pixel που είναι εμπόδια, κόκκινο κανάλι)
-        #             Rover.worldmap[rock_y_world, rock_x_world, 1] += 1 (τα pixel που είναι πετρώματα, πράσινο κανάλι)
-        #             Rover.worldmap[navigable_y_world, navigable_x_world, 2] += 1 (τα pixel που είναι πλοηγήσιμο έδαφος, μπλε κανάλι)
+    # 7)
 
+    Rover.worldmap[obsty_wld, obstx_wld, 0] += 1
+    Rover.worldmap[rocky_wld, rockx_wld, 1] += 1
+    Rover.worldmap[grdy_wld, grdx_wld, 2] += 1
 
     # 8) Μετατροπή των rover-centric pixels σε πολικές συντεταγμένες
     # και έπειτα ενημέρωση του rover
-        # Παράδειγμα ενημέρωσης: Rover.nav_dists = rover_centric_pixel_distances
-        #                        Rover.nav_angles = rover_centric_angles
+    Rover.nav_dists, Rover.nav_angles = to_polar_coords(grdx_pix, grdy_pix)
+    Rover.rock_dists, Rover.rock_angles = to_polar_coords(rockx_pix, rocky_pix)
 
-      
-    
-    ###############################################################################
-    ###############################################################################
+
+
+
+
+
 
 
     return Rover
